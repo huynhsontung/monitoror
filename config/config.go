@@ -40,6 +40,7 @@ type (
 		AzureDevOps map[string]*AzureDevOps
 		Github      map[string]*Github
 		Stripe      map[string]*Stripe
+		Datadog     map[string]*Datadog
 	}
 
 	Ping struct {
@@ -103,6 +104,14 @@ type (
 		Token                string // Secret API key
 		CountCacheExpiration int    // In Millisecond
 		InitialMaxDelay      int    // In Millisecond
+	}
+
+	Datadog struct {
+		Timeout              int
+		APIKey               string
+		ApplicationKey       string
+		CountCacheExpiration int // In Millisecond
+		InitialMaxDelay      int // In Millisecond
 	}
 )
 
@@ -199,6 +208,15 @@ func InitConfig() *Config {
 		viper.SetDefault(fmt.Sprintf("Monitorable.Stripe.%s.InitialMaxDelay", variant), DefaultInitialMaxDelay)
 	}
 
+	// --- Datadog Configuration ---
+	for variant := range variants["Datadog"] {
+		viper.SetDefault(fmt.Sprintf("Monitorable.Datadog.%s.Timeout", variant), 5000)
+		viper.SetDefault(fmt.Sprintf("Monitorable.Datadog.%s.APIKey", variant), "")
+		viper.SetDefault(fmt.Sprintf("Monitorable.Datadog.%s.ApplicationKey", variant), "")
+		viper.SetDefault(fmt.Sprintf("Monitorable.Datadog.%s.CountCacheExpiration", variant), 72000) // Datadog has rate limit of 100 retrivals per org per hour
+		viper.SetDefault(fmt.Sprintf("Monitorable.Datadog.%s.InitialMaxDelay", variant), DefaultInitialMaxDelay)
+	}
+
 	_ = viper.Unmarshal(&config)
 
 	return &config
@@ -257,4 +275,8 @@ func (g *Github) IsValid() bool {
 
 func (s *Stripe) IsValid() bool {
 	return s.Token != ""
+}
+
+func (d *Datadog) IsValid() bool {
+	return d.APIKey != "" && d.ApplicationKey != ""
 }

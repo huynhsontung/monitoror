@@ -15,6 +15,11 @@ import (
 	configDelivery "github.com/monitoror/monitoror/monitorable/config/delivery/http"
 	configRepository "github.com/monitoror/monitoror/monitorable/config/repository"
 	configUsecase "github.com/monitoror/monitoror/monitorable/config/usecase"
+	"github.com/monitoror/monitoror/monitorable/datadog"
+	datadogDelivery "github.com/monitoror/monitoror/monitorable/datadog/delivery"
+	datadogModels "github.com/monitoror/monitoror/monitorable/datadog/models"
+	datadogRepository "github.com/monitoror/monitoror/monitorable/datadog/repository"
+	datadogUsecase "github.com/monitoror/monitoror/monitorable/datadog/usecase"
 	"github.com/monitoror/monitoror/monitorable/github"
 	githubDelivery "github.com/monitoror/monitoror/monitorable/github/delivery/http"
 	githubModels "github.com/monitoror/monitoror/monitorable/github/models"
@@ -45,17 +50,16 @@ import (
 	portModels "github.com/monitoror/monitoror/monitorable/port/models"
 	portRepository "github.com/monitoror/monitoror/monitorable/port/repository"
 	portUsecase "github.com/monitoror/monitoror/monitorable/port/usecase"
-	"github.com/monitoror/monitoror/monitorable/travisci"
-	travisciDelivery "github.com/monitoror/monitoror/monitorable/travisci/delivery/http"
-	travisciModels "github.com/monitoror/monitoror/monitorable/travisci/models"
-	travisciRepository "github.com/monitoror/monitoror/monitorable/travisci/repository"
-	travisciUsecase "github.com/monitoror/monitoror/monitorable/travisci/usecase"
-
 	"github.com/monitoror/monitoror/monitorable/stripe"
 	stripeDelivery "github.com/monitoror/monitoror/monitorable/stripe/delivery"
 	stripeModels "github.com/monitoror/monitoror/monitorable/stripe/models"
 	stripeRepository "github.com/monitoror/monitoror/monitorable/stripe/repository"
 	stripeUsecase "github.com/monitoror/monitoror/monitorable/stripe/usecase"
+	"github.com/monitoror/monitoror/monitorable/travisci"
+	travisciDelivery "github.com/monitoror/monitoror/monitorable/travisci/delivery/http"
+	travisciModels "github.com/monitoror/monitoror/monitorable/travisci/models"
+	travisciRepository "github.com/monitoror/monitoror/monitorable/travisci/repository"
+	travisciUsecase "github.com/monitoror/monitoror/monitorable/travisci/usecase"
 	"github.com/monitoror/monitoror/pkg/monitoror/utils/system"
 
 	"github.com/jsdidierlaurent/echo-middleware/cache"
@@ -98,6 +102,9 @@ func (s *Server) initApis() {
 	}
 	for variant, conf := range s.config.Monitorable.Stripe {
 		registerTile(s.registerStripe, variant, conf.IsValid())
+	}
+	for variant, conf := range s.config.Monitorable.Datadog {
+		registerTile(s.registerDatadog, variant, conf.IsValid())
 	}
 }
 
@@ -273,4 +280,18 @@ func (s *Server) registerStripe(variant string) {
 
 	s.configHelper.RegisterTileWithConfigVariant(stripe.StripeCountTileType,
 		variant, &stripeModels.CountParams{}, routeCount.Path, stripeConfig.InitialMaxDelay)
+}
+
+func (s *Server) registerDatadog(variant string) {
+	datadogConfig := s.config.Monitorable.Datadog[variant]
+	countCacheExpiration := time.Millisecond * time.Duration(datadogConfig.CountCacheExpiration)
+
+	repository := datadogRepository.NewDatadogRepository(datadogConfig)
+	usecase := datadogUsecase.NewDatadogUsecase(repository)
+	delivery := datadogDelivery.NewDatadogDelivery(usecase)
+
+	azureGroup := s.api.Group(fmt.Sprintf("/datadog/%s", variant))
+	routeCount := azureGroup.GET("/metric", s.cm.UpstreamCacheHandlerWithExpiration(countCacheExpiration, delivery.GetMetric))
+	s.configHelper.RegisterTileWithConfigVariant(datadog.DatadogMetricTileType,
+		variant, &datadogModels.MetricParams{}, routeCount.Path, datadogConfig.InitialMaxDelay)
 }
