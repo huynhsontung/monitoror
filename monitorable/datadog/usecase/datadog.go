@@ -1,7 +1,7 @@
 package usecase
 
 import (
-	"fmt"
+	"encoding/json"
 
 	"github.com/monitoror/monitoror/models"
 	"github.com/monitoror/monitoror/monitorable/datadog"
@@ -17,26 +17,36 @@ func NewDatadogUsecase(repository datadog.Repository) datadog.Usecase {
 }
 
 func (du *datadogUsecase) Metric(params *datadogModels.MetricParams) (*models.Tile, error) {
-	tile := models.NewTile(datadog.DatadogMetricTileType).WithValue(models.NumberUnit)
+	tile := models.NewTile(datadog.DatadogMetricTileType).WithValue(models.TrendUnit)
 	tile.Label = "Datadog Metric"
 
 	metric, err := du.repository.GetMetric(params.Query, params.Timespan)
 	if err != nil {
 		return nil, &models.MonitororError{Err: err, Tile: tile}
 	}
-	if len(metric.Pointlist) < 1 {
-		return nil, &models.MonitororError{Tile: tile, Message: "No data received"}
+	dataLen := len(metric.Pointlist)
+	if dataLen < 1 {
+		tile.Value.Values = append(tile.Value.Values, "[]")
+		return tile, nil
 	}
 
 	if metric.Metric != "" {
 		tile.Label = metric.Metric
 	}
-	latestData := metric.Pointlist[len(metric.Pointlist)-1].Value
+	data := make([]float64, dataLen)
+	for i, v := range metric.Pointlist {
+		data[i] = v.Value
+	}
+	latestData := metric.Pointlist[dataLen-1].Value
 	if params.Threshold != 0 && latestData > float64(params.Threshold) {
 		tile.Status = models.WarningStatus
 	} else {
 		tile.Status = models.SuccessStatus
 	}
-	tile.Value.Values = append(tile.Value.Values, fmt.Sprintf("%.2f", latestData))
+	bytes, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	tile.Value.Values = append(tile.Value.Values, string(bytes))
 	return tile, nil
 }

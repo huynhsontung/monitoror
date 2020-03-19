@@ -68,7 +68,11 @@ func (r *datadogRepository) GetMetric(query string, timespan uint) (*models.Data
 		return nil, err
 	}
 	if len(metricResp.Series) < 1 {
-		return nil, errors.New("No data received")
+		if metricResp.Status == "ok" {
+			return &models.DatadogMetric{}, nil
+		} else {
+			return nil, errors.New("No data received")
+		}
 	}
 
 	return metricResp.Series[0], nil
