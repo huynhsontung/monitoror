@@ -13,6 +13,7 @@ export enum TileType {
   AzureDevOpsBuild = 'AZUREDEVOPS-BUILD',
   AzureDevOpsRelease = 'AZUREDEVOPS-RELEASE',
   StripeCount = 'STRIPE-COUNT',
+  DatadogMetric = 'DATADOG-METRIC',
 
   Empty = 'EMPTY',
   Group = 'GROUP',
